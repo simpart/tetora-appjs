@@ -17,16 +17,38 @@
 
 let device_ready_id = null;
 let thisobj = {
-    ready: (cb) => {
+    ready: (cb, plugin) => {
         try {
-            if (!window.cordova) {
-                // doesn't run deviceready
-                device_ready_id = setInterval(() => { thisobj.device_ready(cb); }, 100);
+            let check_ready_loop = () => {
+                try {
+                    if (null === device_ready_id) {
+                        device_ready_id = setInterval(() => { thisobj.ready(cb,plugin); }, 100);
+                    }
+                } catch (e) {
+                    console.error(e.stack);
+                    throw e;
+                }
+            }
+
+            if ( (!window.cordova) || (!window.plugins) ) {
+                // doesn't run device ready
+                check_ready_loop();
                 return;
             }
             
+	    // check plugin
+	    let plugins = (Array.isArray(plugin)) ? plugin:[plugin];
+            for (let pidx in plugins) {
+	        const check_plugin = new Function("return typeof " + plugins[pidx] + " !== 'undefined' && " + plugins[pidx] + " ? true : false;");
+                if (!check_plugin()) {
+                    check_ready_loop();
+		    return;
+                }
+	    }
+
             // deviceready event run
             clearInterval(device_ready_id);
+	    device_ready_id = null;
             if (typeof cb === 'function') {
                 cb();
             }

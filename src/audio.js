@@ -1,5 +1,16 @@
 
-let load_table = {};
+
+let getAudioId = (src) => {
+    try {
+        let sp_src = src.split('/').pop().split('.');
+	return sp_src.length > 1 ? sp_src[sp_src.length - 2] : sp_src[0];
+    } catch (e) {
+        console.error(e.stack);
+	throw e;
+    }
+}
+
+let load_table = JSON.parse(sessionStorage.getItem('ttr.audio.load_table') || '{}');
 let thisobj = {
     /**
      * {
@@ -11,15 +22,14 @@ let thisobj = {
      */
     init: (audio, cb) => {
         try {
-            // get audio id
-            let sp_src = audio.src.split('/');
-	    sp_src = sp_src[sp_src.length-1];
-            sp_src = sp_src.split('.');
-            
-	    let audio_id = sp_src[0];
-	    if (1 < sp_src.length) {
-                audio_id = sp_src[sp_src.length-2];
+            if (true === Array.isArray(audio)) {
+                for (let aidx in audio) {
+                    ttr.audio.init(audio[aidx]);
+		}
+		return;
 	    }
+
+	    let audio_id = getAudioId(audio.src);
             
             // check load
             if (undefined !== load_table[audio_id]) {
@@ -46,51 +56,59 @@ let thisobj = {
             }
             // add table
             load_table[audio_id] = audio;
+            sessionStorage.setItem('ttr.audio.load_table', JSON.stringify(load_table));
         } catch (e) {
             console.error(e.stack);
 	    throw e;
         }
     },
-    clear: (ign_lst) => {
+
+    reset: () => {
+        try {
+	    thisobj.clear();
+            sessionStorage.setItem('ttr.audio.load_table', '{}');
+        } catch (e) {
+            console.error(e.stack);
+	    throw e;
+	}
+    },
+
+    clear: (ign_lst=[]) => {
         try {
             let deleteKeys = [];
             
-            for (let tbl_idx in load_table) {
-                // check ignore
-                if (ign_lst.includes(tbl_idx)) {
+            for (let audio_id in load_table) {
+                // check ignore (srcからIDを取得して比較)
+                if (ign_lst.some((ign_src) => getAudioId(ign_src) === audio_id)) {
+                    // this is not clear target
                     continue;
                 }
                 
                 // unload
                 if (window.plugins && window.plugins.NativeAudio) {
                     window.plugins.NativeAudio.unload(
-                        tbl_idx,
+                        audio_id,
                         (m) => {},
                         (m) => {}
                     );
                 }
                 
                 // add delete target
-                deleteKeys.push(tbl_idx);
+                deleteKeys.push(audio_id);
             }
+            
             // clear table
             deleteKeys.forEach(key => delete load_table[key]);
+	    sessionStorage.setItem('ttr.audio.load_table', JSON.stringify(load_table));
 	} catch (e) {
             console.error(e.stack);
             throw e;
         }
     },
+
     play: (src, vol=1.0) => {
         try {
-            // get audio id
-            let sp_src = src.split('/');
-            sp_src = sp_src[sp_src.length-1];
-            sp_src = sp_src.split('.');
-            
-            let audio_id = sp_src[0];
-            if (1 < sp_src.length) {
-                audio_id = sp_src[sp_src.length-2];
-            }
+            let audio_id = getAudioId(src);
             
             // check load
             if (undefined === load_table[audio_id]) {
@@ -112,17 +130,19 @@ let thisobj = {
             throw e;
         }
     },
-    loop: (src) => {
+
+    play_once: (src, vol=1.0, delay=1000) => {
         try {
-            // get audio id
-            let sp_src = src.split('/');
-            sp_src = sp_src[sp_src.length-1];
-            sp_src = sp_src.split('.');
             
-            let audio_id = sp_src[0];
-            if (1 < sp_src.length) {
-                audio_id = sp_src[sp_src.length-2];
-            }
+	} catch (e) {
+            console.error(e.stack);
+            throw e;
+	}
+    },
+
+    loop: (src, vol=1.0) => {
+        try {
+            let audio_id = getAudioId(src);
             
             // check load 
             if (undefined === load_table[audio_id]) {
@@ -134,6 +154,7 @@ let thisobj = {
                          },200);
                      }
                  );
+		 return;
             }
             
             // loop play
